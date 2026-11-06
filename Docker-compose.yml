@@ -1,0 +1,74 @@
+
+services:
+  # 1. Broker MQTT (Comunicação IoT)
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto_broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  # 2. Node-RED (Fluxos e Automação)
+  node-red:
+    image: nodered/node-red:latest
+    container_name: node_red
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered_data:/data
+    depends_on:
+      - mosquitto
+
+  # 3. InfluxDB (Banco de Dados NoSQL de Séries Temporais)
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: opdata
+      DOCKER_INFLUXDB_INIT_BUCKET: telemetria
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  # 4. TimescaleDB (Banco Relacional PostgreSQL para Séries Temporais)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: industrial_db
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+
+  # 5. Grafana (Visualização e Dashboards OT)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - influxdb
+      - timescaledb
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  nodered_data:
+  influxdb_data:
+  timescaledb_data:
+  grafana_data:
