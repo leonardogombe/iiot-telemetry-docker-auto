@@ -1,0 +1,75 @@
+
+ 
+services:
+  # ----------------------------------------------------
+  # APACHE KAFKA (Modo KRaft - Sem Zookeeper)
+  # ----------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka_broker
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # ----------------------------------------------------
+  # BANCO DE METADADOS DO AIRFLOW (PostgreSQL)
+  # ----------------------------------------------------
+  postgres_airflow:
+    image: postgres:15-alpine
+    container_name: postgres_airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow_password
+      POSTGRES_DB: airflow_db
+    ports:
+      - "5433:5432" # Porta 5433 para evitar conflito com outros Postgres locais
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+
+  # ----------------------------------------------------
+  # APACHE AIRFLOW (Webserver + Scheduler integrados)
+  # ----------------------------------------------------
+  airflow:
+    image: apache/airflow:2.8.1
+    container_name: airflow_engine
+    restart: always
+    depends_on:
+      - postgres_airflow
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOWCOREEXECUTOR: "SequentialExecutor"
+      AIRFLOWDATABASESQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow_password@postgres_airflow:5432/airflow_db"
+      AIRFLOWCORELOAD_EXAMPLES: "False"
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_plugins:/opt/airflow/plugins
+    # Inicializa o banco e inicia o servidor web/scheduler na mesma instância leve
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --firstname Admin --lastname Admin --role Admin --email admin@admin.com --password admin &&
+               airflow standalone"
+
+volumes:
+  kafka_data:
+  postgres_airflow_data:
+  airflow_dags:
+  airflow_logs:
+  airflow_plugins:
